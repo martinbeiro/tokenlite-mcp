@@ -31,9 +31,9 @@ Run `bun run compare-tokens` to see stats for your own tools.
 ## Installation
 
 ```bash
-bun add litemcp-ts
+bun add litemcp
 # or
-npm install litemcp-ts
+npm install litemcp
 ```
 
 ## Usage
@@ -41,7 +41,7 @@ npm install litemcp-ts
 LiteMCP has the **exact same API** as `McpServer`:
 
 ```typescript
-import { LiteMCP } from 'litemcp-ts';
+import { LiteMCP } from 'litemcp';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
 
