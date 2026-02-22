@@ -1,5 +1,5 @@
 {
-  "name": "litemcp",
+  "name": "tokenlite-mcp",
   "version": "0.1.0",
   "description": "Lightweight MCP proxy wrapper for tool interception and composition",
   "type": "module",

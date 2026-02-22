@@ -31,9 +31,9 @@ Run `bun run compare-tokens` to see stats for your own tools.
 ## Installation
 
 ```bash
-bun add litemcp
+bun add tokenlite-mcp
 # or
-npm install litemcp
+npm install tokenlite-mcp
 ```
 
 ## Usage
@@ -41,7 +41,7 @@ npm install litemcp
 LiteMCP has the **exact same API** as `McpServer`:
 
 ```typescript
-import { LiteMCP } from 'litemcp';
+import { LiteMCP } from 'tokenlite-mcp';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
 
