@@ -8,4 +8,5 @@ export type {
   RegisteredTool,
   ServerOptions,
   Transport,
+  TokenStats,
 } from './types.js';

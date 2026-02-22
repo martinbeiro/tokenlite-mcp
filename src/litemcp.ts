@@ -9,6 +9,7 @@ import {
 } from '@modelcontextprotocol/sdk/types.js';
 import { toJsonSchemaCompat } from '@modelcontextprotocol/sdk/server/zod-json-schema-compat.js';
 import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
+import type { TokenStats } from './types.js';
 
 export class LiteMCP extends McpServer {
   constructor(serverInfo: Implementation, options?: ServerOptions) {
@@ -127,6 +128,86 @@ export class LiteMCP extends McpServer {
           text: JSON.stringify({ tools: filtered, total, limit }, null, 2),
         },
       ],
+    };
+  }
+
+  /**
+   * Get token usage statistics comparing traditional MCP vs LiteMCP approach.
+   * Uses ~4 characters per token as approximation.
+   */
+  getTokenStats(): TokenStats {
+    const registeredTools = (this as unknown as { _registeredTools: Record<string, RegisteredTool> })
+      ._registeredTools;
+
+    // Build all tool schemas as they'd appear in traditional tools/list
+    const allToolSchemas = Object.entries(registeredTools)
+      .filter(([, tool]) => tool.enabled)
+      .map(([name, tool]) => ({
+        name,
+        description: tool.description,
+        inputSchema: tool.inputSchema ? toJsonSchemaCompat(tool.inputSchema) : undefined,
+      }));
+
+    const traditionalJson = JSON.stringify({ tools: allToolSchemas });
+
+    // LiteMCP base: just search + execute
+    const liteMcpBase = JSON.stringify({
+      tools: [
+        {
+          name: 'search',
+          description: 'Search available tools. Returns tool names, descriptions, and input schemas.',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              query: { type: 'string', description: 'Filter by name or description' },
+              limit: { type: 'number', description: 'Max results to return (default: 10)' },
+            },
+          },
+        },
+        {
+          name: 'execute',
+          description: 'Execute a tool by name with the provided arguments.',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              tool: { type: 'string', description: 'Name of the tool to execute' },
+              arguments: { type: 'object', description: 'Arguments to pass to the tool', additionalProperties: true },
+            },
+            required: ['tool'],
+          },
+        },
+      ],
+    });
+
+    // Estimate tokens (~4 chars per token)
+    const charsPerToken = 4;
+    const traditionalTokens = Math.ceil(traditionalJson.length / charsPerToken);
+    const liteMcpBaseTokens = Math.ceil(liteMcpBase.length / charsPerToken);
+
+    // Average search result (3 tools)
+    const sampleSearchResult = JSON.stringify({
+      tools: allToolSchemas.slice(0, 3),
+      total: allToolSchemas.length,
+      limit: 10,
+    });
+    const avgSearchTokens = Math.ceil(sampleSearchResult.length / charsPerToken);
+
+    const savings = traditionalTokens > 0
+      ? Math.round((1 - liteMcpBaseTokens / traditionalTokens) * 100)
+      : 0;
+
+    return {
+      toolCount: allToolSchemas.length,
+      traditional: {
+        tokens: traditionalTokens,
+        characters: traditionalJson.length,
+      },
+      liteMcp: {
+        baseTokens: liteMcpBaseTokens,
+        baseCharacters: liteMcpBase.length,
+        avgSearchTokens,
+      },
+      savingsPercent: savings,
     };
   }
 

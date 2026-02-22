@@ -266,4 +266,53 @@ describe('LiteMCP', () => {
       expect(true).toBe(true);
     });
   });
+
+  describe('getTokenStats', () => {
+    beforeEach(() => {
+      // Register enough tools to show savings (LiteMCP overhead is ~162 tokens)
+      for (let i = 1; i <= 10; i++) {
+        server.registerTool(
+          `tool${i}`,
+          {
+            description: `Tool number ${i} that does something useful`,
+            inputSchema: { input: z.string().describe('Input parameter') },
+          },
+          async () => ({ content: [{ type: 'text', text: 'ok' }] })
+        );
+      }
+    });
+
+    it('returns correct tool count', () => {
+      const stats = server.getTokenStats();
+      expect(stats.toolCount).toBe(10);
+    });
+
+    it('traditional tokens are greater than liteMcp base tokens with many tools', () => {
+      const stats = server.getTokenStats();
+      expect(stats.traditional.tokens).toBeGreaterThan(stats.liteMcp.baseTokens);
+    });
+
+    it('calculates positive savings percentage with many tools', () => {
+      const stats = server.getTokenStats();
+      expect(stats.savingsPercent).toBeGreaterThan(0);
+      expect(stats.savingsPercent).toBeLessThan(100);
+    });
+
+    it('excludes disabled tools from stats', () => {
+      server._registeredTools['tool1'].enabled = false;
+      const stats = server.getTokenStats();
+      expect(stats.toolCount).toBe(9);
+    });
+
+    it('returns all required fields', () => {
+      const stats = server.getTokenStats();
+      expect(stats.toolCount).toBeDefined();
+      expect(stats.traditional.tokens).toBeDefined();
+      expect(stats.traditional.characters).toBeDefined();
+      expect(stats.liteMcp.baseTokens).toBeDefined();
+      expect(stats.liteMcp.baseCharacters).toBeDefined();
+      expect(stats.liteMcp.avgSearchTokens).toBeDefined();
+      expect(stats.savingsPercent).toBeDefined();
+    });
+  });
 });

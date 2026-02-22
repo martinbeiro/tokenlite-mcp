@@ -24,7 +24,8 @@
     "typecheck": "tsc --noEmit",
     "prepublishOnly": "bun run build && bun test",
     "example": "bun run examples/basic.ts",
-    "inspector": "npx @modelcontextprotocol/inspector bun run examples/basic.ts"
+    "inspector": "npx @modelcontextprotocol/inspector bun run examples/basic.ts",
+    "compare-tokens": "bun run scripts/compare-tokens.ts"
   },
   "keywords": [
     "mcp",
