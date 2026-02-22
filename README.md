@@ -1,15 +1,33 @@
 # LiteMCP
 
-A lightweight wrapper for the [Model Context Protocol SDK](https://github.com/modelcontextprotocol/typescript-sdk) that reduces token usage by exposing only `search` and `execute` tools to clients.
+A drop-in replacement for the [Model Context Protocol SDK](https://github.com/modelcontextprotocol/typescript-sdk) that adds **intelligent tool discovery** for MCP clients.
 
-## Why?
+## The Problem
 
-MCP servers can expose hundreds of tools. Each tool definition consumes tokens in the LLM's context. LiteMCP wraps your tools and exposes only two:
+Many AI agents and MCP clients don't have native tool searching. When your server exposes 50+ tools, the client loads *all* tool definitions into the LLM context - wasting tokens and overwhelming the model.
 
-- **`search`** - Query available tools by name or description
+LiteMCP solves this by wrapping your tools with:
+
+- **`search`** - BM25-ranked tool discovery by name/description
 - **`execute`** - Run any tool by name with arguments
+- **`set_mode`** - Toggle between lite and traditional mode
 
-This reduces token usage significantly while maintaining full functionality.
+Now clients can search for relevant tools instead of loading everything upfront.
+
+## Token Savings
+
+With 10 tools, LiteMCP reduces base context usage by **~80%**:
+
+```
+┌─────────────────┬─────────────┐
+│ Approach        │ Tokens      │
+├─────────────────┼─────────────┤
+│ Traditional MCP │         917 │
+│ LiteMCP (base)  │         162 │
+└─────────────────┴─────────────┘
+```
+
+Run `bun run compare-tokens` to see stats for your own tools.
 
 ## Installation
 
@@ -21,127 +39,124 @@ npm install litemcp-ts
 
 ## Usage
 
-LiteMCP has the **exact same API** as `McpServer` from the official SDK:
+LiteMCP has the **exact same API** as `McpServer`:
 
 ```typescript
 import { LiteMCP } from 'litemcp-ts';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
 
-// Create server - same API as McpServer
 const server = new LiteMCP({ name: 'my-server', version: '1.0.0' });
 
-// Register tools - same API as McpServer.registerTool
+// Register tools exactly like McpServer
 server.registerTool(
-  'greet',
+  'create_user',
   {
-    description: 'Greet a user by name',
-    inputSchema: { name: z.string() },
+    description: 'Create a new user account',
+    inputSchema: {
+      email: z.string().email(),
+      name: z.string(),
+    },
   },
-  async ({ name }) => ({
-    content: [{ type: 'text', text: `Hello, ${name}!` }],
+  async ({ email, name }) => ({
+    content: [{ type: 'text', text: JSON.stringify({ id: '123', email, name }) }],
   })
 );
 
-server.registerTool(
-  'add',
-  {
-    description: 'Add two numbers',
-    inputSchema: { a: z.number(), b: z.number() },
-  },
-  async ({ a, b }) => ({
-    content: [{ type: 'text', text: String(a + b) }],
-  })
-);
-
-// Connect - same API as McpServer.connect
 const transport = new StdioServerTransport();
 await server.connect(transport);
 ```
 
 ## What Clients See
 
-Instead of seeing all your tools directly, clients see:
+Instead of all your tools, clients see three meta-tools:
 
 ```json
 {
   "tools": [
-    {
-      "name": "search",
-      "description": "Search available tools. Returns tool names, descriptions, and input schemas.",
-      "inputSchema": {
-        "type": "object",
-        "properties": {
-          "query": { "type": "string", "description": "Optional filter by name or description" }
-        }
-      }
-    },
-    {
-      "name": "execute",
-      "description": "Execute a tool by name with the provided arguments.",
-      "inputSchema": {
-        "type": "object",
-        "properties": {
-          "tool": { "type": "string", "description": "Name of the tool to execute" },
-          "arguments": { "type": "object", "description": "Arguments to pass to the tool" }
-        },
-        "required": ["tool"]
-      }
-    }
+    { "name": "search", "description": "Search available tools..." },
+    { "name": "execute", "description": "Execute a tool by name..." },
+    { "name": "set_mode", "description": "Toggle lite/traditional mode..." }
   ]
 }
 ```
 
-### Search Example
+### Search with BM25 Ranking
 
 ```json
 // Request
-{ "name": "search", "arguments": { "query": "greet" } }
+{ "name": "search", "arguments": { "query": "user" } }
+
+// Response - ranked by relevance
+{
+  "tools": [
+    { "name": "create_user", "description": "Create a new user account", "inputSchema": {...} },
+    { "name": "get_user", "description": "Get user by ID", "inputSchema": {...} },
+    { "name": "delete_user", "description": "Delete a user", "inputSchema": {...} }
+  ],
+  "total": 3,
+  "limit": 10
+}
+```
+
+Search features:
+- Splits `snake_case` and `camelCase` into words
+- Matches across name and description
+- IDF-weighted scoring (rare terms rank higher)
+- Exact name matches get boosted
+
+### Execute Tools
+
+```json
+// Request
+{ "name": "execute", "arguments": { "tool": "create_user", "arguments": { "email": "a@b.com", "name": "Alice" } } }
 
 // Response
-[
+{ "content": [{ "type": "text", "text": "{\"id\":\"123\",\"email\":\"a@b.com\",\"name\":\"Alice\"}" }] }
+```
+
+### Toggle Mode
+
+Clients can switch to traditional mode if they prefer:
+
+```json
+{ "name": "set_mode", "arguments": { "lite": false } }
+```
+
+In traditional mode, all registered tools are exposed directly (like standard MCP).
+
+## Options
+
+```typescript
+const server = new LiteMCP(
+  { name: 'my-server', version: '1.0.0' },
   {
-    "name": "greet",
-    "description": "Greet a user by name",
-    "inputSchema": { "type": "object", "properties": { "name": { "type": "string" } } }
+    liteMode: true,  // Start in lite mode (default: true)
   }
-]
+);
 ```
 
-### Execute Example
+## Programmatic Token Stats
 
-```json
-// Request
-{ "name": "execute", "arguments": { "tool": "greet", "arguments": { "name": "World" } } }
-
-// Response
-{ "content": [{ "type": "text", "text": "Hello, World!" }] }
+```typescript
+const stats = server.getTokenStats();
+console.log(stats);
+// {
+//   toolCount: 10,
+//   traditional: { tokens: 917, characters: 3667 },
+//   liteMcp: { baseTokens: 162, baseCharacters: 646, avgSearchTokens: 283 },
+//   savingsPercent: 82
+// }
 ```
-
-## API Compatibility
-
-LiteMCP extends `McpServer` from the official SDK, so all methods work identically:
-
-- `registerTool()` - Register a tool
-- `registerResource()` - Register a resource
-- `registerPrompt()` - Register a prompt
-- `connect()` - Connect to a transport
-- All other `McpServer` methods
 
 ## Development
 
 ```bash
-# Install dependencies
-bun install
-
-# Run tests
-bun test
-
-# Type check
-bun run typecheck
-
-# Format code
-bun run format
+bun install          # Install dependencies
+bun test             # Run tests (40 tests)
+bun run example      # Run example server
+bun run inspector    # Test with MCP Inspector
+bun run compare-tokens  # See token comparison
 ```
 
 ## License

@@ -9,4 +9,5 @@ export type {
   ServerOptions,
   Transport,
   TokenStats,
+  LiteMCPOptions,
 } from './types.js';

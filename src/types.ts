@@ -11,6 +11,18 @@ export type { ServerOptions } from '@modelcontextprotocol/sdk/server/index.js';
 
 export type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
 
+import type { ServerOptions } from '@modelcontextprotocol/sdk/server/index.js';
+
+/** LiteMCP server options */
+export interface LiteMCPOptions extends ServerOptions {
+  /**
+   * Enable lite mode (search + execute) by default.
+   * Clients can toggle this at runtime via the set_mode tool.
+   * @default true
+   */
+  liteMode?: boolean;
+}
+
 /** Token usage statistics for comparing traditional MCP vs LiteMCP */
 export interface TokenStats {
   /** Number of registered tools */
