@@ -1,4 +1,3 @@
-// LiteMCP - MCP Proxy Wrapper
-// TODO: Implement MCP client wrapper for tool proxying
+export { LiteMCP } from './litemcp.js';
 
-export {};
+export type { ToolConfig, ToolHandler, ToolInfo, LiteMCPOptions } from './types.js';
