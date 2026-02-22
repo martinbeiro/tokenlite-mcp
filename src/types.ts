@@ -13,8 +13,8 @@ export type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
 
 import type { ServerOptions } from '@modelcontextprotocol/sdk/server/index.js';
 
-/** LiteMCP server options */
-export interface LiteMCPOptions extends ServerOptions {
+/** TokenLite server options */
+export interface TokenLiteOptions extends ServerOptions {
   /**
    * Enable lite mode (search + execute).
    * When false, behaves like standard McpServer (all tools exposed directly).
@@ -23,7 +23,7 @@ export interface LiteMCPOptions extends ServerOptions {
   liteMode?: boolean;
 }
 
-/** Token usage statistics for comparing traditional MCP vs LiteMCP */
+/** Token usage statistics for comparing traditional MCP vs TokenLite */
 export interface TokenStats {
   /** Number of registered tools */
   toolCount: number;
@@ -32,8 +32,8 @@ export interface TokenStats {
     tokens: number;
     characters: number;
   };
-  /** LiteMCP approach (search + execute only) */
-  liteMcp: {
+  /** TokenLite approach (search + execute only) */
+  tokenLite: {
     /** Base tokens for search + execute tools */
     baseTokens: number;
     baseCharacters: number;

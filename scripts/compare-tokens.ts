@@ -3,16 +3,16 @@
  * Token Comparison CLI
  *
  * Compares token usage between traditional MCP (all tools exposed)
- * and LiteMCP (search + execute only).
+ * and TokenLite (search + execute only).
  *
  * Run with: bun run scripts/compare-tokens.ts
  */
 
 import { z } from 'zod';
-import { LiteMCP } from '../src/index.js';
+import { TokenLite } from '../src/index.js';
 
 // Create server with same tools as basic example
-const server = new LiteMCP({ name: 'api-server', version: '1.0.0' });
+const server = new TokenLite({ name: 'api-server', version: '1.0.0' });
 
 // Register all 10 tools from the example
 server.registerTool('create_user', {
@@ -95,7 +95,7 @@ server.registerTool('health_check', {
 const stats = server.getTokenStats();
 
 console.log('\n┌─────────────────────────────────────────────────────────────┐');
-console.log('│               LiteMCP Token Comparison                      │');
+console.log('│               TokenLite Token Comparison                      │');
 console.log('└─────────────────────────────────────────────────────────────┘\n');
 
 console.log(`  Registered tools: ${stats.toolCount}\n`);
@@ -104,19 +104,19 @@ console.log('  ┌─────────────────┬──�
 console.log('  │ Approach        │ Tokens      │ Characters   │');
 console.log('  ├─────────────────┼─────────────┼──────────────┤');
 console.log(`  │ Traditional MCP │ ${String(stats.traditional.tokens).padStart(11)} │ ${String(stats.traditional.characters).padStart(12)} │`);
-console.log(`  │ LiteMCP (base)  │ ${String(stats.liteMcp.baseTokens).padStart(11)} │ ${String(stats.liteMcp.baseCharacters).padStart(12)} │`);
+console.log(`  │ TokenLite (base)  │ ${String(stats.tokenLite.baseTokens).padStart(11)} │ ${String(stats.tokenLite.baseCharacters).padStart(12)} │`);
 console.log('  └─────────────────┴─────────────┴──────────────┘\n');
 
 console.log(`  Base context savings: ${stats.savingsPercent}%\n`);
 
 console.log('  Per-query costs:');
-console.log(`  • Search (3 tools): ~${stats.liteMcp.avgSearchTokens} tokens`);
+console.log(`  • Search (3 tools): ~${stats.tokenLite.avgSearchTokens} tokens`);
 console.log(`  • Execute call: ~50 tokens (tool name + args)\n`);
 
-const typicalSession = stats.liteMcp.baseTokens + stats.liteMcp.avgSearchTokens * 2;
+const typicalSession = stats.tokenLite.baseTokens + stats.tokenLite.avgSearchTokens * 2;
 console.log('  Typical session (2 searches + executions):');
 console.log(`  • Traditional: ${stats.traditional.tokens} tokens (constant)`);
-console.log(`  • LiteMCP: ~${typicalSession} tokens\n`);
+console.log(`  • TokenLite: ~${typicalSession} tokens\n`);
 
 const sessionSavings = Math.round((1 - typicalSession / stats.traditional.tokens) * 100);
 console.log(`  Session savings: ${sessionSavings}%\n`);

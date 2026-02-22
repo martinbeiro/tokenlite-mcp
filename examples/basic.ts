@@ -1,5 +1,5 @@
 /**
- * LiteMCP Example - Simulated API Server
+ * TokenLite Example - Simulated API Server
  *
  * This example registers 10 tools to simulate a real API.
  * Clients will see `health_check` (always visible) + `search` and `execute` tools.
@@ -10,9 +10,9 @@
 
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
-import { LiteMCP } from '../src/index.js';
+import { TokenLite } from '../src/index.js';
 
-const server = new LiteMCP({ name: 'api-server', version: '1.0.0' });
+const server = new TokenLite({ name: 'api-server', version: '1.0.0' });
 
 // User Management
 server.registerTool(

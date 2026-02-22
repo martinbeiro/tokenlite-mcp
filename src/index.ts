@@ -1,4 +1,4 @@
-export { LiteMCP } from './tokenlite.js';
+export { TokenLite } from './tokenlite.js';
 
 // Re-export SDK types for convenience
 export type {
@@ -9,5 +9,5 @@ export type {
   ServerOptions,
   Transport,
   TokenStats,
-  LiteMCPOptions,
+  TokenLiteOptions,
 } from './types.js';

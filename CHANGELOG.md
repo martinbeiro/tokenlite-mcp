@@ -10,7 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Initial release
-- `LiteMCP` class extending `McpServer` from official SDK
+- `TokenLite` class extending `McpServer` from official SDK
 - `search` tool to query registered tools by name/description
 - `execute` tool to run any registered tool by name
 - Full API compatibility with `McpServer`

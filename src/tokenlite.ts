@@ -8,7 +8,7 @@ import {
 } from '@modelcontextprotocol/sdk/types.js';
 import { toJsonSchemaCompat } from '@modelcontextprotocol/sdk/server/zod-json-schema-compat.js';
 import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
-import type { TokenStats, LiteMCPOptions } from './types.js';
+import type { TokenStats, TokenLiteOptions } from './types.js';
 import { bm25Search } from './search.js';
 
 /** Meta-tool definitions for search and execute */
@@ -37,10 +37,10 @@ const EXECUTE_TOOL: Tool = {
   },
 };
 
-export class LiteMCP extends McpServer {
+export class TokenLite extends McpServer {
   private readonly _liteMode: boolean;
 
-  constructor(serverInfo: Implementation, options?: LiteMCPOptions) {
+  constructor(serverInfo: Implementation, options?: TokenLiteOptions) {
     super(serverInfo, options);
     this._liteMode = options?.liteMode ?? true;
   }
@@ -178,7 +178,7 @@ export class LiteMCP extends McpServer {
   }
 
   /**
-   * Get token usage statistics comparing traditional MCP vs LiteMCP approach.
+   * Get token usage statistics comparing traditional MCP vs TokenLite approach.
    * Uses ~4 characters per token as approximation.
    */
   getTokenStats(): TokenStats {
@@ -199,13 +199,13 @@ export class LiteMCP extends McpServer {
       }));
 
     const traditionalJson = JSON.stringify({ tools: allToolSchemas });
-    const liteMcpBase = JSON.stringify({
+    const tokenLiteBase = JSON.stringify({
       tools: [...visibleToolSchemas, SEARCH_TOOL, EXECUTE_TOOL],
     });
 
     const charsPerToken = 4;
     const traditionalTokens = Math.ceil(traditionalJson.length / charsPerToken);
-    const liteMcpBaseTokens = Math.ceil(liteMcpBase.length / charsPerToken);
+    const tokenLiteBaseTokens = Math.ceil(tokenLiteBase.length / charsPerToken);
 
     const searchableTools = allToolSchemas.filter(
       (t) => !visibleToolSchemas.some((v) => v.name === t.name)
@@ -218,13 +218,13 @@ export class LiteMCP extends McpServer {
     const avgSearchTokens = Math.ceil(sampleSearchResult.length / charsPerToken);
 
     const savings = traditionalTokens > 0
-      ? Math.round((1 - liteMcpBaseTokens / traditionalTokens) * 100)
+      ? Math.round((1 - tokenLiteBaseTokens / traditionalTokens) * 100)
       : 0;
 
     return {
       toolCount: allToolSchemas.length,
       traditional: { tokens: traditionalTokens, characters: traditionalJson.length },
-      liteMcp: { baseTokens: liteMcpBaseTokens, baseCharacters: liteMcpBase.length, avgSearchTokens },
+      tokenLite: { baseTokens: tokenLiteBaseTokens, baseCharacters: tokenLiteBase.length, avgSearchTokens },
       savingsPercent: savings,
     };
   }

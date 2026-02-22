@@ -1,4 +1,4 @@
-# LiteMCP
+# TokenLite
 
 A drop-in replacement for the [Model Context Protocol SDK](https://github.com/modelcontextprotocol/typescript-sdk) that adds **intelligent tool discovery** for MCP clients.
 
@@ -6,7 +6,7 @@ A drop-in replacement for the [Model Context Protocol SDK](https://github.com/mo
 
 Many AI agents and MCP clients don't have native tool searching. When your server exposes 50+ tools, the client loads *all* tool definitions into the LLM context - wasting tokens and overwhelming the model.
 
-LiteMCP solves this by wrapping your tools with:
+TokenLite solves this by wrapping your tools with:
 
 - **`search`** - BM25-ranked tool discovery by name/description
 - **`execute`** - Run any tool by name with arguments
@@ -15,14 +15,14 @@ Now clients can search for relevant tools instead of loading everything upfront.
 
 ## Token Savings
 
-With 10 tools, LiteMCP reduces base context usage by **~80%**:
+With 10 tools, TokenLite reduces base context usage by **~80%**:
 
 ```
 ┌─────────────────┬─────────────┐
 │ Approach        │ Tokens      │
 ├─────────────────┼─────────────┤
 │ Traditional MCP │         917 │
-│ LiteMCP (base)  │         162 │
+│ TokenLite (base)  │         162 │
 └─────────────────┴─────────────┘
 ```
 
@@ -38,14 +38,14 @@ npm install tokenlite-mcp
 
 ## Usage
 
-LiteMCP has the **exact same API** as `McpServer`:
+TokenLite has the **exact same API** as `McpServer`:
 
 ```typescript
-import { LiteMCP } from 'tokenlite-mcp';
+import { TokenLite } from 'tokenlite-mcp';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
 
-const server = new LiteMCP({ name: 'my-server', version: '1.0.0' });
+const server = new TokenLite({ name: 'my-server', version: '1.0.0' });
 
 // Register tools exactly like McpServer
 server.registerTool(
@@ -116,7 +116,7 @@ Search features:
 ## Options
 
 ```typescript
-const server = new LiteMCP(
+const server = new TokenLite(
   { name: 'my-server', version: '1.0.0' },
   {
     liteMode: true,  // Enable search+execute (default: true)
@@ -167,7 +167,7 @@ console.log(stats);
 // {
 //   toolCount: 10,
 //   traditional: { tokens: 917, characters: 3667 },
-//   liteMcp: { baseTokens: 162, baseCharacters: 646, avgSearchTokens: 283 },
+//   tokenLite: { baseTokens: 162, baseCharacters: 646, avgSearchTokens: 283 },
 //   savingsPercent: 82
 // }
 ```

@@ -1,11 +1,11 @@
 import { describe, it, expect, beforeEach } from 'bun:test';
 import { z } from 'zod';
-import { LiteMCP } from '../src/index.js';
+import { TokenLite } from '../src/index.js';
 import type { RegisteredTool } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 
 // Helper to access private members for testing
-type LiteMCPInternal = LiteMCP & {
+type TokenLiteInternal = TokenLite & {
   _registeredTools: Record<string, RegisteredTool>;
   registeredTools: Record<string, RegisteredTool>;
   handleSearch: (query?: string, limit?: number) => CallToolResult;
@@ -21,11 +21,11 @@ function parseSearchResult(result: CallToolResult) {
   };
 }
 
-describe('LiteMCP', () => {
-  let server: LiteMCPInternal;
+describe('TokenLite', () => {
+  let server: TokenLiteInternal;
 
   beforeEach(() => {
-    server = new LiteMCP({ name: 'test-server', version: '1.0.0' }) as LiteMCPInternal;
+    server = new TokenLite({ name: 'test-server', version: '1.0.0' }) as TokenLiteInternal;
   });
 
   describe('registerTool', () => {
@@ -316,7 +316,7 @@ describe('LiteMCP', () => {
 
   describe('getTokenStats', () => {
     beforeEach(() => {
-      // Register enough tools to show savings (LiteMCP overhead is ~162 tokens)
+      // Register enough tools to show savings (TokenLite overhead is ~162 tokens)
       for (let i = 1; i <= 10; i++) {
         server.registerTool(
           `tool${i}`,
@@ -334,9 +334,9 @@ describe('LiteMCP', () => {
       expect(stats.toolCount).toBe(10);
     });
 
-    it('traditional tokens are greater than liteMcp base tokens with many tools', () => {
+    it('traditional tokens are greater than tokenLite base tokens with many tools', () => {
       const stats = server.getTokenStats();
-      expect(stats.traditional.tokens).toBeGreaterThan(stats.liteMcp.baseTokens);
+      expect(stats.traditional.tokens).toBeGreaterThan(stats.tokenLite.baseTokens);
     });
 
     it('calculates positive savings percentage with many tools', () => {
@@ -356,9 +356,9 @@ describe('LiteMCP', () => {
       expect(stats.toolCount).toBeDefined();
       expect(stats.traditional.tokens).toBeDefined();
       expect(stats.traditional.characters).toBeDefined();
-      expect(stats.liteMcp.baseTokens).toBeDefined();
-      expect(stats.liteMcp.baseCharacters).toBeDefined();
-      expect(stats.liteMcp.avgSearchTokens).toBeDefined();
+      expect(stats.tokenLite.baseTokens).toBeDefined();
+      expect(stats.tokenLite.baseCharacters).toBeDefined();
+      expect(stats.tokenLite.avgSearchTokens).toBeDefined();
       expect(stats.savingsPercent).toBeDefined();
     });
   });
@@ -410,7 +410,7 @@ describe('LiteMCP', () => {
 
       // With 1 visible tool + search + execute, base tokens should be higher than
       // just search + execute alone
-      expect(stats.liteMcp.baseTokens).toBeGreaterThan(150); // ~162 for just search+execute
+      expect(stats.tokenLite.baseTokens).toBeGreaterThan(150); // ~162 for just search+execute
     });
 
     it('getTokenStats counts all tools in toolCount', () => {
@@ -428,7 +428,7 @@ describe('LiteMCP', () => {
       const stats = server.getTokenStats();
 
       // avgSearchTokens should be based on 3 regular tools, not the visible one
-      expect(stats.liteMcp.avgSearchTokens).toBeGreaterThan(0);
+      expect(stats.tokenLite.avgSearchTokens).toBeGreaterThan(0);
     });
   });
 });
