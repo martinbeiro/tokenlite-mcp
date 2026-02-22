@@ -10,6 +10,7 @@ import {
 import { toJsonSchemaCompat } from '@modelcontextprotocol/sdk/server/zod-json-schema-compat.js';
 import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
 import type { TokenStats } from './types.js';
+import { bm25Search } from './search.js';
 
 export class LiteMCP extends McpServer {
   constructor(serverInfo: Implementation, options?: ServerOptions) {
@@ -109,23 +110,24 @@ export class LiteMCP extends McpServer {
           : undefined,
       }));
 
-    let filtered = query
-      ? tools.filter(
-          (t) =>
-            t.name.toLowerCase().includes(query.toLowerCase()) ||
-            (t.description?.toLowerCase().includes(query.toLowerCase()) ?? false)
-        )
-      : tools;
+    // Use BM25 ranking when query is provided
+    let results: typeof tools;
+    if (query) {
+      const ranked = bm25Search(tools, query);
+      results = ranked.map((r) => r.doc);
+    } else {
+      results = tools;
+    }
 
     // Apply limit
-    const total = filtered.length;
-    filtered = filtered.slice(0, limit);
+    const total = results.length;
+    const limited = results.slice(0, limit);
 
     return {
       content: [
         {
           type: 'text',
-          text: JSON.stringify({ tools: filtered, total, limit }, null, 2),
+          text: JSON.stringify({ tools: limited, total, limit }, null, 2),
         },
       ],
     };

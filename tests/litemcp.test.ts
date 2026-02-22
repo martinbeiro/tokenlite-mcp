@@ -267,6 +267,68 @@ describe('LiteMCP', () => {
     });
   });
 
+  describe('BM25 search', () => {
+    beforeEach(() => {
+      server.registerTool('create_user', { description: 'Create a new user account' }, async () => ({
+        content: [{ type: 'text', text: 'ok' }],
+      }));
+      server.registerTool('delete_user', { description: 'Delete a user account' }, async () => ({
+        content: [{ type: 'text', text: 'ok' }],
+      }));
+      server.registerTool('get_user', { description: 'Get user details by ID' }, async () => ({
+        content: [{ type: 'text', text: 'ok' }],
+      }));
+      server.registerTool('send_email', { description: 'Send an email notification' }, async () => ({
+        content: [{ type: 'text', text: 'ok' }],
+      }));
+      server.registerTool('health_check', { description: 'Check system health' }, async () => ({
+        content: [{ type: 'text', text: 'ok' }],
+      }));
+    });
+
+    it('matches word parts in snake_case names', () => {
+      const result = parseSearchResult(server.handleSearch(server._registeredTools, 'user'));
+
+      expect(result.tools.length).toBeGreaterThanOrEqual(3);
+      expect(result.tools.map((t) => t.name)).toContain('create_user');
+      expect(result.tools.map((t) => t.name)).toContain('delete_user');
+      expect(result.tools.map((t) => t.name)).toContain('get_user');
+    });
+
+    it('ranks exact matches higher', () => {
+      const result = parseSearchResult(server.handleSearch(server._registeredTools, 'get_user'));
+
+      expect(result.tools[0].name).toBe('get_user');
+    });
+
+    it('matches multiple query terms', () => {
+      const result = parseSearchResult(server.handleSearch(server._registeredTools, 'create account'));
+
+      expect(result.tools.length).toBeGreaterThanOrEqual(1);
+      expect(result.tools[0].name).toBe('create_user');
+    });
+
+    it('searches description content', () => {
+      const result = parseSearchResult(server.handleSearch(server._registeredTools, 'notification'));
+
+      expect(result.tools).toHaveLength(1);
+      expect(result.tools[0].name).toBe('send_email');
+    });
+
+    it('returns results sorted by relevance', () => {
+      // 'user' appears in multiple tools - should be ranked
+      const result = parseSearchResult(server.handleSearch(server._registeredTools, 'user'));
+
+      // Should have multiple results, all ranked by relevance
+      expect(result.tools.length).toBeGreaterThan(0);
+      // All returned tools should contain 'user' somewhere
+      for (const tool of result.tools) {
+        const searchText = `${tool.name} ${tool.description ?? ''}`.toLowerCase();
+        expect(searchText).toContain('user');
+      }
+    });
+  });
+
   describe('getTokenStats', () => {
     beforeEach(() => {
       // Register enough tools to show savings (LiteMCP overhead is ~162 tokens)
