@@ -75,14 +75,21 @@ export class LiteMCP extends McpServer {
       },
     };
 
-    // Override tools/list to expose only search + execute
+    // Override tools/list to expose visible tools + search + execute
     this.server.setRequestHandler(ListToolsRequestSchema, async () => {
-      return { tools: [searchTool, executeTool] };
+      const visibleTools = this.getVisibleTools(registeredTools);
+      return { tools: [...visibleTools, searchTool, executeTool] };
     });
 
-    // Override tools/call to route through search/execute
+    // Override tools/call to handle visible tools directly + route through search/execute
     this.server.setRequestHandler(CallToolRequestSchema, async (request) => {
       const { name, arguments: args = {} } = request.params;
+
+      // Check if it's an always-visible tool - call directly
+      const tool = registeredTools[name];
+      if (tool && tool._meta?.alwaysVisible) {
+        return this.handleDirectCall(tool, args as Record<string, unknown>);
+      }
 
       if (name === 'search') {
         return this.handleSearch(
@@ -109,13 +116,63 @@ export class LiteMCP extends McpServer {
     await super.connect(transport);
   }
 
+  /** Get tools marked as alwaysVisible */
+  private getVisibleTools(registeredTools: Record<string, RegisteredTool>): Tool[] {
+    return Object.entries(registeredTools)
+      .filter(([, tool]) => tool.enabled && tool._meta?.alwaysVisible)
+      .map(([name, tool]) => {
+        const schema = tool.inputSchema ? toJsonSchemaCompat(tool.inputSchema) : {};
+        return {
+          name,
+          description: tool.description,
+          inputSchema: {
+            type: 'object' as const,
+            ...schema,
+          },
+        };
+      });
+  }
+
+  /** Call a tool handler directly (for alwaysVisible tools) */
+  private async handleDirectCall(
+    tool: RegisteredTool,
+    args: Record<string, unknown>
+  ): Promise<CallToolResult> {
+    if (!tool.enabled) {
+      return {
+        isError: true,
+        content: [{ type: 'text', text: 'Tool is disabled.' }],
+      };
+    }
+
+    try {
+      const handler = tool.handler as (
+        args: Record<string, unknown>,
+        extra: unknown
+      ) => Promise<CallToolResult>;
+
+      return await handler(args, {});
+    } catch (error) {
+      return {
+        isError: true,
+        content: [
+          {
+            type: 'text',
+            text: `Tool error: ${error instanceof Error ? error.message : String(error)}`,
+          },
+        ],
+      };
+    }
+  }
+
   private handleSearch(
     registeredTools: Record<string, RegisteredTool>,
     query?: string,
     limit: number = 10
   ): CallToolResult {
+    // Exclude alwaysVisible tools from search (they're already exposed directly)
     const tools = Object.entries(registeredTools)
-      .filter(([, tool]) => tool.enabled)
+      .filter(([, tool]) => tool.enabled && !tool._meta?.alwaysVisible)
       .map(([name, tool]) => ({
         name,
         description: tool.description,
@@ -164,11 +221,21 @@ export class LiteMCP extends McpServer {
         inputSchema: tool.inputSchema ? toJsonSchemaCompat(tool.inputSchema) : undefined,
       }));
 
+    // Build visible tool schemas (alwaysVisible tools)
+    const visibleToolSchemas = Object.entries(registeredTools)
+      .filter(([, tool]) => tool.enabled && tool._meta?.alwaysVisible)
+      .map(([name, tool]) => ({
+        name,
+        description: tool.description,
+        inputSchema: tool.inputSchema ? toJsonSchemaCompat(tool.inputSchema) : { type: 'object' },
+      }));
+
     const traditionalJson = JSON.stringify({ tools: allToolSchemas });
 
-    // LiteMCP base: just search + execute
+    // LiteMCP base: visible tools + search + execute
     const liteMcpBase = JSON.stringify({
       tools: [
+        ...visibleToolSchemas,
         {
           name: 'search',
           description: 'Search available tools. Returns tool names, descriptions, and input schemas.',
@@ -200,10 +267,13 @@ export class LiteMCP extends McpServer {
     const traditionalTokens = Math.ceil(traditionalJson.length / charsPerToken);
     const liteMcpBaseTokens = Math.ceil(liteMcpBase.length / charsPerToken);
 
-    // Average search result (3 tools)
+    // Average search result (3 tools, excluding visible ones)
+    const searchableTools = allToolSchemas.filter(
+      (t) => !visibleToolSchemas.some((v) => v.name === t.name)
+    );
     const sampleSearchResult = JSON.stringify({
-      tools: allToolSchemas.slice(0, 3),
-      total: allToolSchemas.length,
+      tools: searchableTools.slice(0, 3),
+      total: searchableTools.length,
       limit: 10,
     });
     const avgSearchTokens = Math.ceil(sampleSearchResult.length / charsPerToken);

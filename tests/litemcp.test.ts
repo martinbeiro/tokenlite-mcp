@@ -377,4 +377,73 @@ describe('LiteMCP', () => {
       expect(stats.savingsPercent).toBeDefined();
     });
   });
+
+  describe('alwaysVisible', () => {
+    beforeEach(() => {
+      // Regular tools (searchable only)
+      server.registerTool('create_user', { description: 'Create a new user account' }, async () => ({
+        content: [{ type: 'text', text: 'ok' }],
+      }));
+      server.registerTool('delete_user', { description: 'Delete a user account' }, async () => ({
+        content: [{ type: 'text', text: 'ok' }],
+      }));
+
+      // Always visible tool
+      server.registerTool(
+        'health_check',
+        {
+          description: 'Check system health',
+          _meta: { alwaysVisible: true },
+        },
+        async () => ({
+          content: [{ type: 'text', text: 'healthy' }],
+        })
+      );
+    });
+
+    it('excludes alwaysVisible tools from search results', () => {
+      const result = parseSearchResult(server.handleSearch(server._registeredTools));
+
+      expect(result.tools).toHaveLength(2);
+      expect(result.tools.map((t) => t.name)).not.toContain('health_check');
+      expect(result.tools.map((t) => t.name)).toContain('create_user');
+      expect(result.tools.map((t) => t.name)).toContain('delete_user');
+    });
+
+    it('does not find alwaysVisible tools via search query', () => {
+      const result = parseSearchResult(server.handleSearch(server._registeredTools, 'health'));
+
+      expect(result.tools).toHaveLength(0);
+    });
+
+    it('stores _meta on registered tool', () => {
+      expect(server._registeredTools['health_check']._meta).toEqual({ alwaysVisible: true });
+    });
+
+    it('getTokenStats includes visible tools in base tokens', () => {
+      const stats = server.getTokenStats();
+
+      // With 1 visible tool + search + execute, base tokens should be higher than
+      // just search + execute alone
+      expect(stats.liteMcp.baseTokens).toBeGreaterThan(150); // ~162 for just search+execute
+    });
+
+    it('getTokenStats counts all tools in toolCount', () => {
+      const stats = server.getTokenStats();
+
+      expect(stats.toolCount).toBe(3); // 2 regular + 1 visible
+    });
+
+    it('getTokenStats excludes visible tools from avgSearchTokens sample', () => {
+      // Register more regular tools to have a sample
+      server.registerTool('get_user', { description: 'Get user details' }, async () => ({
+        content: [{ type: 'text', text: 'ok' }],
+      }));
+
+      const stats = server.getTokenStats();
+
+      // avgSearchTokens should be based on 3 regular tools, not the visible one
+      expect(stats.liteMcp.avgSearchTokens).toBeGreaterThan(0);
+    });
+  });
 });

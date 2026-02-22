@@ -2,7 +2,7 @@
  * LiteMCP Example - Simulated API Server
  *
  * This example registers 10 tools to simulate a real API.
- * Clients will only see `search` and `execute` tools.
+ * Clients will see `health_check` (always visible) + `search` and `execute` tools.
  *
  * Run with: bun run example
  * Test with: bun run inspector
@@ -147,12 +147,13 @@ server.registerTool(
   })
 );
 
-// System
+// System - Always visible (appears directly in tools/list)
 server.registerTool(
   'health_check',
   {
     description: 'Check system health and status',
     inputSchema: {},
+    _meta: { alwaysVisible: true },
   },
   async () => ({
     content: [{ type: 'text', text: JSON.stringify({ status: 'healthy', uptime: '14d 3h 22m', version: '1.0.0', services: { database: 'up', cache: 'up', queue: 'up' } }) }],

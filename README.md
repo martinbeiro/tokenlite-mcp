@@ -125,6 +125,40 @@ const server = new LiteMCP(
 );
 ```
 
+## Always Visible Tools
+
+Some tools should always be available without searching (e.g., `health_check`, `help`). Mark them with `_meta: { alwaysVisible: true }`:
+
+```typescript
+// This tool appears directly in tools/list (no search needed)
+server.registerTool(
+  'health_check',
+  {
+    description: 'Check system health',
+    _meta: { alwaysVisible: true },
+  },
+  async () => ({
+    content: [{ type: 'text', text: 'healthy' }],
+  })
+);
+```
+
+Clients will see:
+```json
+{
+  "tools": [
+    { "name": "health_check", "description": "Check system health", ... },
+    { "name": "search", ... },
+    { "name": "execute", ... }
+  ]
+}
+```
+
+Always-visible tools:
+- Appear directly in `tools/list`
+- Can be called directly by name (no `execute` wrapper needed)
+- Are excluded from `search` results (they're already visible)
+
 ## Programmatic Token Stats
 
 ```typescript
