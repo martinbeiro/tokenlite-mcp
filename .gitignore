@@ -1,0 +1,28 @@
+# Dependencies - never commit node_modules (huge, platform-specific)
+node_modules/
+
+# Build output - can be regenerated from source
+dist/
+
+# IDE settings - personal preference, shouldn't be shared
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+
+# Logs
+*.log
+
+# Environment variables - NEVER commit secrets!
+.env
+.env.local
+.env.*.local
+
+# Test coverage reports
+coverage/
+
+# TypeScript incremental build cache
+*.tsbuildinfo
