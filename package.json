@@ -16,13 +16,15 @@
   ],
   "scripts": {
     "dev": "bun run --watch src/index.ts",
-    "build": "bun build src/index.ts --outdir dist --target node",
-    "build:types": "tsc --emitDeclarationOnly",
+    "build": "tsc",
     "start": "bun run src/index.ts",
     "test": "bun test",
     "lint": "eslint src/",
     "format": "prettier --write src/",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "bun run build && bun test",
+    "example": "bun run examples/basic.ts",
+    "inspector": "npx @modelcontextprotocol/inspector bun run examples/basic.ts"
   },
   "keywords": [
     "mcp",

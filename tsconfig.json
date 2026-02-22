@@ -1,20 +1,17 @@
 {
   "compilerOptions": {
-    // Bun uses its own module resolution, but we keep this for tsc compatibility
     "target": "ES2022",
-    "module": "ESNext",
-    "moduleResolution": "bundler",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
 
-    // Include Bun's global types (like Bun.serve, etc.)
-    "types": ["bun-types"],
-
-    // Output settings (for build:types script)
+    // Output settings
     "outDir": "./dist",
     "rootDir": "./src",
     "declaration": true,
     "declarationMap": true,
+    "sourceMap": true,
 
-    // Strict mode - catches bugs at compile time
+    // Strict mode
     "strict": true,
     "noUncheckedIndexedAccess": true,
     "noImplicitOverride": true,
@@ -25,5 +22,5 @@
     "resolveJsonModule": true
   },
   "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist"]
+  "exclude": ["node_modules", "dist", "tests", "examples"]
 }
