@@ -10,7 +10,6 @@ LiteMCP solves this by wrapping your tools with:
 
 - **`search`** - BM25-ranked tool discovery by name/description
 - **`execute`** - Run any tool by name with arguments
-- **`set_mode`** - Toggle between lite and traditional mode
 
 Now clients can search for relevant tools instead of loading everything upfront.
 
@@ -69,14 +68,13 @@ await server.connect(transport);
 
 ## What Clients See
 
-Instead of all your tools, clients see three meta-tools:
+Instead of all your tools, clients see two meta-tools:
 
 ```json
 {
   "tools": [
     { "name": "search", "description": "Search available tools..." },
-    { "name": "execute", "description": "Execute a tool by name..." },
-    { "name": "set_mode", "description": "Toggle lite/traditional mode..." }
+    { "name": "execute", "description": "Execute a tool by name..." }
   ]
 }
 ```
@@ -115,23 +113,14 @@ Search features:
 { "content": [{ "type": "text", "text": "{\"id\":\"123\",\"email\":\"a@b.com\",\"name\":\"Alice\"}" }] }
 ```
 
-### Toggle Mode
-
-Clients can switch to traditional mode if they prefer:
-
-```json
-{ "name": "set_mode", "arguments": { "lite": false } }
-```
-
-In traditional mode, all registered tools are exposed directly (like standard MCP).
-
 ## Options
 
 ```typescript
 const server = new LiteMCP(
   { name: 'my-server', version: '1.0.0' },
   {
-    liteMode: true,  // Start in lite mode (default: true)
+    liteMode: true,  // Enable search+execute (default: true)
+                     // Set to false for traditional MCP behavior
   }
 );
 ```

@@ -16,8 +16,8 @@ import type { ServerOptions } from '@modelcontextprotocol/sdk/server/index.js';
 /** LiteMCP server options */
 export interface LiteMCPOptions extends ServerOptions {
   /**
-   * Enable lite mode (search + execute) by default.
-   * Clients can toggle this at runtime via the set_mode tool.
+   * Enable lite mode (search + execute).
+   * When false, behaves like standard McpServer (all tools exposed directly).
    * @default true
    */
   liteMode?: boolean;

@@ -13,7 +13,7 @@ import type { TokenStats, LiteMCPOptions } from './types.js';
 import { bm25Search } from './search.js';
 
 export class LiteMCP extends McpServer {
-  private _liteMode: boolean;
+  private readonly _liteMode: boolean;
 
   constructor(serverInfo: Implementation, options?: LiteMCPOptions) {
     super(serverInfo, options);
@@ -25,15 +25,16 @@ export class LiteMCP extends McpServer {
     return this._liteMode;
   }
 
-  /** Set lite mode on/off */
-  set liteMode(value: boolean) {
-    this._liteMode = value;
-  }
-
   override async connect(transport: Transport): Promise<void> {
     // Access private _registeredTools via any cast
     const registeredTools = (this as unknown as { _registeredTools: Record<string, RegisteredTool> })
       ._registeredTools;
+
+    // If not in lite mode, use default SDK behavior
+    if (!this._liteMode) {
+      await super.connect(transport);
+      return;
+    }
 
     // Build lite mode tool definitions
     const searchTool: Tool = {
@@ -74,83 +75,35 @@ export class LiteMCP extends McpServer {
       },
     };
 
-    const setModeTool: Tool = {
-      name: 'set_mode',
-      description: 'Toggle between lite mode (search + execute) and traditional mode (all tools). Returns the new mode.',
-      inputSchema: {
-        type: 'object',
-        properties: {
-          lite: {
-            type: 'boolean',
-            description: 'Enable lite mode (true) or traditional mode (false)',
-          },
-        },
-        required: ['lite'],
-      },
-    };
-
-    // Override tools/list based on current mode
+    // Override tools/list to expose only search + execute
     this.server.setRequestHandler(ListToolsRequestSchema, async () => {
-      if (this._liteMode) {
-        return { tools: [searchTool, executeTool, setModeTool] };
-      }
-      // Traditional mode: expose all registered tools + set_mode
-      const allTools = Object.entries(registeredTools)
-        .filter(([, tool]) => tool.enabled)
-        .map(([name, tool]) => ({
-          name,
-          description: tool.description,
-          inputSchema: tool.inputSchema ? toJsonSchemaCompat(tool.inputSchema) : undefined,
-        }));
-      return { tools: [...allTools, setModeTool] };
+      return { tools: [searchTool, executeTool] };
     });
 
-    // Override tools/call to route based on mode
+    // Override tools/call to route through search/execute
     this.server.setRequestHandler(CallToolRequestSchema, async (request) => {
       const { name, arguments: args = {} } = request.params;
 
-      // set_mode is always available
-      if (name === 'set_mode') {
-        this._liteMode = args['lite'] as boolean;
-        return {
-          content: [{
-            type: 'text',
-            text: JSON.stringify({
-              mode: this._liteMode ? 'lite' : 'traditional',
-              message: this._liteMode
-                ? 'Lite mode enabled. Use search + execute to discover and call tools.'
-                : 'Traditional mode enabled. All tools are now directly available.',
-            }),
-          }],
-        };
+      if (name === 'search') {
+        return this.handleSearch(
+          registeredTools,
+          args['query'] as string | undefined,
+          args['limit'] as number | undefined
+        );
       }
 
-      if (this._liteMode) {
-        // Lite mode: only search and execute
-        if (name === 'search') {
-          return this.handleSearch(
-            registeredTools,
-            args['query'] as string | undefined,
-            args['limit'] as number | undefined
-          );
-        }
-
-        if (name === 'execute') {
-          return this.handleExecute(
-            registeredTools,
-            args['tool'] as string,
-            (args['arguments'] ?? {}) as Record<string, unknown>
-          );
-        }
-
-        return {
-          isError: true,
-          content: [{ type: 'text', text: `Unknown tool: ${name}. In lite mode, use 'search' and 'execute'.` }],
-        };
+      if (name === 'execute') {
+        return this.handleExecute(
+          registeredTools,
+          args['tool'] as string,
+          (args['arguments'] ?? {}) as Record<string, unknown>
+        );
       }
 
-      // Traditional mode: call registered tools directly
-      return this.handleExecute(registeredTools, name, args as Record<string, unknown>);
+      return {
+        isError: true,
+        content: [{ type: 'text', text: `Unknown tool: ${name}. Use 'search' and 'execute'.` }],
+      };
     });
 
     await super.connect(transport);
