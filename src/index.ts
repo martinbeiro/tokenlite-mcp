@@ -1,4 +1,4 @@
-export { LiteMCP } from './litemcp.js';
+export { LiteMCP } from './tokenlite.js';
 
 // Re-export SDK types for convenience
 export type {

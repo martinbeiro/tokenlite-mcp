@@ -7,16 +7,9 @@ import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 // Helper to access private members for testing
 type LiteMCPInternal = LiteMCP & {
   _registeredTools: Record<string, RegisteredTool>;
-  handleSearch: (
-    tools: Record<string, RegisteredTool>,
-    query?: string,
-    limit?: number
-  ) => CallToolResult;
-  handleExecute: (
-    tools: Record<string, RegisteredTool>,
-    toolName: string,
-    args: Record<string, unknown>
-  ) => Promise<CallToolResult>;
+  registeredTools: Record<string, RegisteredTool>;
+  handleSearch: (query?: string, limit?: number) => CallToolResult;
+  handleExecute: (toolName: string, args: Record<string, unknown>) => Promise<CallToolResult>;
 };
 
 // Helper to parse search results
@@ -98,7 +91,7 @@ describe('LiteMCP', () => {
     });
 
     it('returns all registered tools when no query', () => {
-      const result = parseSearchResult(server.handleSearch(server._registeredTools));
+      const result = parseSearchResult(server.handleSearch());
 
       expect(result.tools).toHaveLength(3);
       expect(result.total).toBe(3);
@@ -108,21 +101,21 @@ describe('LiteMCP', () => {
     });
 
     it('filters by tool name', () => {
-      const result = parseSearchResult(server.handleSearch(server._registeredTools, 'greet'));
+      const result = parseSearchResult(server.handleSearch('greet'));
 
       expect(result.tools).toHaveLength(1);
       expect(result.tools[0].name).toBe('greet');
     });
 
     it('filters by description', () => {
-      const result = parseSearchResult(server.handleSearch(server._registeredTools, 'forecast'));
+      const result = parseSearchResult(server.handleSearch('forecast'));
 
       expect(result.tools).toHaveLength(1);
       expect(result.tools[0].name).toBe('weather');
     });
 
     it('filter is case insensitive', () => {
-      const result = parseSearchResult(server.handleSearch(server._registeredTools, 'GREET'));
+      const result = parseSearchResult(server.handleSearch('GREET'));
 
       expect(result.tools).toHaveLength(1);
       expect(result.tools[0].name).toBe('greet');
@@ -130,7 +123,7 @@ describe('LiteMCP', () => {
 
     it('returns empty array when no match', () => {
       const result = parseSearchResult(
-        server.handleSearch(server._registeredTools, 'nonexistent')
+        server.handleSearch('nonexistent')
       );
 
       expect(result.tools).toHaveLength(0);
@@ -140,21 +133,21 @@ describe('LiteMCP', () => {
     it('excludes disabled tools', () => {
       server._registeredTools['greet'].enabled = false;
 
-      const result = parseSearchResult(server.handleSearch(server._registeredTools));
+      const result = parseSearchResult(server.handleSearch());
 
       expect(result.tools).toHaveLength(2);
       expect(result.tools.map((t) => t.name)).not.toContain('greet');
     });
 
     it('includes inputSchema in results', () => {
-      const result = parseSearchResult(server.handleSearch(server._registeredTools, 'add'));
+      const result = parseSearchResult(server.handleSearch('add'));
 
       expect(result.tools[0].inputSchema).toBeDefined();
     });
 
     it('respects limit parameter', () => {
       const result = parseSearchResult(
-        server.handleSearch(server._registeredTools, undefined, 2)
+        server.handleSearch(undefined, 2)
       );
 
       expect(result.tools).toHaveLength(2);
@@ -163,7 +156,7 @@ describe('LiteMCP', () => {
     });
 
     it('uses default limit of 10', () => {
-      const result = parseSearchResult(server.handleSearch(server._registeredTools));
+      const result = parseSearchResult(server.handleSearch());
 
       expect(result.limit).toBe(10);
     });
@@ -194,7 +187,7 @@ describe('LiteMCP', () => {
     });
 
     it('calls the correct handler with arguments', async () => {
-      const result = await server.handleExecute(server._registeredTools, 'greet', {
+      const result = await server.handleExecute('greet', {
         name: 'World',
       });
 
@@ -203,7 +196,7 @@ describe('LiteMCP', () => {
     });
 
     it('passes multiple arguments correctly', async () => {
-      const result = await server.handleExecute(server._registeredTools, 'add', {
+      const result = await server.handleExecute('add', {
         a: 2,
         b: 3,
       });
@@ -212,11 +205,7 @@ describe('LiteMCP', () => {
     });
 
     it('returns error for unknown tool', async () => {
-      const result = await server.handleExecute(
-        server._registeredTools,
-        'unknown',
-        {}
-      );
+      const result = await server.handleExecute('unknown', {});
 
       expect(result.isError).toBe(true);
       expect(result.content[0].text).toContain('Unknown tool');
@@ -225,7 +214,7 @@ describe('LiteMCP', () => {
     it('returns error for disabled tool', async () => {
       server._registeredTools['greet'].enabled = false;
 
-      const result = await server.handleExecute(server._registeredTools, 'greet', {
+      const result = await server.handleExecute('greet', {
         name: 'World',
       });
 
@@ -238,11 +227,7 @@ describe('LiteMCP', () => {
         throw new Error('Something went wrong');
       });
 
-      const result = await server.handleExecute(
-        server._registeredTools,
-        'failing',
-        {}
-      );
+      const result = await server.handleExecute('failing', {});
 
       expect(result.isError).toBe(true);
       expect(result.content[0].text).toContain('Something went wrong');
@@ -287,7 +272,7 @@ describe('LiteMCP', () => {
     });
 
     it('matches word parts in snake_case names', () => {
-      const result = parseSearchResult(server.handleSearch(server._registeredTools, 'user'));
+      const result = parseSearchResult(server.handleSearch('user'));
 
       expect(result.tools.length).toBeGreaterThanOrEqual(3);
       expect(result.tools.map((t) => t.name)).toContain('create_user');
@@ -296,20 +281,20 @@ describe('LiteMCP', () => {
     });
 
     it('ranks exact matches higher', () => {
-      const result = parseSearchResult(server.handleSearch(server._registeredTools, 'get_user'));
+      const result = parseSearchResult(server.handleSearch('get_user'));
 
       expect(result.tools[0].name).toBe('get_user');
     });
 
     it('matches multiple query terms', () => {
-      const result = parseSearchResult(server.handleSearch(server._registeredTools, 'create account'));
+      const result = parseSearchResult(server.handleSearch('create account'));
 
       expect(result.tools.length).toBeGreaterThanOrEqual(1);
       expect(result.tools[0].name).toBe('create_user');
     });
 
     it('searches description content', () => {
-      const result = parseSearchResult(server.handleSearch(server._registeredTools, 'notification'));
+      const result = parseSearchResult(server.handleSearch('notification'));
 
       expect(result.tools).toHaveLength(1);
       expect(result.tools[0].name).toBe('send_email');
@@ -317,7 +302,7 @@ describe('LiteMCP', () => {
 
     it('returns results sorted by relevance', () => {
       // 'user' appears in multiple tools - should be ranked
-      const result = parseSearchResult(server.handleSearch(server._registeredTools, 'user'));
+      const result = parseSearchResult(server.handleSearch('user'));
 
       // Should have multiple results, all ranked by relevance
       expect(result.tools.length).toBeGreaterThan(0);
@@ -402,7 +387,7 @@ describe('LiteMCP', () => {
     });
 
     it('excludes alwaysVisible tools from search results', () => {
-      const result = parseSearchResult(server.handleSearch(server._registeredTools));
+      const result = parseSearchResult(server.handleSearch());
 
       expect(result.tools).toHaveLength(2);
       expect(result.tools.map((t) => t.name)).not.toContain('health_check');
@@ -411,7 +396,7 @@ describe('LiteMCP', () => {
     });
 
     it('does not find alwaysVisible tools via search query', () => {
-      const result = parseSearchResult(server.handleSearch(server._registeredTools, 'health'));
+      const result = parseSearchResult(server.handleSearch('health'));
 
       expect(result.tools).toHaveLength(0);
     });
