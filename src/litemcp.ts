@@ -1,162 +1,162 @@
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
+import { McpServer, type RegisteredTool } from '@modelcontextprotocol/sdk/server/mcp.js';
+import type { ServerOptions } from '@modelcontextprotocol/sdk/server/index.js';
 import {
-  objectFromShape,
-  safeParse,
-  getParseErrorMessage,
-} from '@modelcontextprotocol/sdk/server/zod-compat.js';
+  ListToolsRequestSchema,
+  CallToolRequestSchema,
+  type CallToolResult,
+  type Tool,
+  type Implementation,
+} from '@modelcontextprotocol/sdk/types.js';
 import { toJsonSchemaCompat } from '@modelcontextprotocol/sdk/server/zod-json-schema-compat.js';
-import { z } from 'zod';
+import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
 
-import type { ToolConfig, ToolHandler, InternalTool, LiteMCPOptions, ToolInfo } from './types.js';
-
-export class LiteMCP {
-  private readonly name: string;
-  private readonly version: string;
-  private readonly tools: Map<string, InternalTool> = new Map();
-  private server: McpServer | null = null;
-
-  constructor(name: string, options: LiteMCPOptions = {}) {
-    this.name = name;
-    this.version = options.version ?? '1.0.0';
+export class LiteMCP extends McpServer {
+  constructor(serverInfo: Implementation, options?: ServerOptions) {
+    super(serverInfo, options);
   }
 
-  /** Register a tool */
-  tool<TInput extends z.ZodRawShape>(
-    name: string,
-    config: ToolConfig<TInput>,
-    handler: ToolHandler<z.infer<z.ZodObject<TInput>>>
-  ): this {
-    this.tools.set(name, {
-      name,
-      description: config.description,
-      inputSchema: config.input,
-      handler: handler as ToolHandler<unknown>,
+  override async connect(transport: Transport): Promise<void> {
+    // Access private _registeredTools via any cast
+    const registeredTools = (this as unknown as { _registeredTools: Record<string, RegisteredTool> })
+      ._registeredTools;
+
+    // Build search and execute tool definitions
+    const searchTool: Tool = {
+      name: 'search',
+      description: 'Search available tools. Returns tool names, descriptions, and input schemas.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          query: {
+            type: 'string',
+            description: 'Optional filter by name or description',
+          },
+        },
+      },
+    };
+
+    const executeTool: Tool = {
+      name: 'execute',
+      description: 'Execute a tool by name with the provided arguments.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          tool: {
+            type: 'string',
+            description: 'Name of the tool to execute',
+          },
+          arguments: {
+            type: 'object',
+            description: 'Arguments to pass to the tool',
+            additionalProperties: true,
+          },
+        },
+        required: ['tool'],
+      },
+    };
+
+    // Override tools/list to only expose search + execute
+    this.server.setRequestHandler(ListToolsRequestSchema, async () => {
+      return { tools: [searchTool, executeTool] };
     });
 
-    return this;
+    // Override tools/call to route through search/execute
+    this.server.setRequestHandler(CallToolRequestSchema, async (request) => {
+      const { name, arguments: args = {} } = request.params;
+
+      if (name === 'search') {
+        return this.handleSearch(registeredTools, args['query'] as string | undefined);
+      }
+
+      if (name === 'execute') {
+        return this.handleExecute(
+          registeredTools,
+          args['tool'] as string,
+          (args['arguments'] ?? {}) as Record<string, unknown>
+        );
+      }
+
+      return {
+        isError: true,
+        content: [{ type: 'text', text: `Unknown tool: ${name}` }],
+      };
+    });
+
+    await super.connect(transport);
   }
 
-  /** Convert internal tools to ToolInfo format for search results */
-  private getToolInfos(query?: string): ToolInfo[] {
-    const allTools = Array.from(this.tools.values());
+  private handleSearch(
+    registeredTools: Record<string, RegisteredTool>,
+    query?: string
+  ): CallToolResult {
+    const tools = Object.entries(registeredTools)
+      .filter(([, tool]) => tool.enabled)
+      .map(([name, tool]) => ({
+        name,
+        description: tool.description,
+        inputSchema: tool.inputSchema
+          ? toJsonSchemaCompat(tool.inputSchema)
+          : undefined,
+      }));
 
     const filtered = query
-      ? allTools.filter(
+      ? tools.filter(
           (t) =>
             t.name.toLowerCase().includes(query.toLowerCase()) ||
-            t.description.toLowerCase().includes(query.toLowerCase())
+            (t.description?.toLowerCase().includes(query.toLowerCase()) ?? false)
         )
-      : allTools;
+      : tools;
 
-    return filtered.map((tool) => ({
-      name: tool.name,
-      description: tool.description,
-      inputSchema: toJsonSchemaCompat(objectFromShape(tool.inputSchema)),
-    }));
+    return {
+      content: [{ type: 'text', text: JSON.stringify(filtered, null, 2) }],
+    };
   }
 
-  /** Start the MCP server with stdio transport */
-  async start(): Promise<void> {
-    this.server = new McpServer({
-      name: this.name,
-      version: this.version,
-    });
+  private async handleExecute(
+    registeredTools: Record<string, RegisteredTool>,
+    toolName: string,
+    args: Record<string, unknown>
+  ): Promise<CallToolResult> {
+    const tool = registeredTools[toolName];
 
-    // Register the `search` tool
-    this.server.registerTool(
-      'search',
-      {
-        description:
-          'Search available tools. Returns tool names, descriptions, and input schemas.',
-        inputSchema: {
-          query: z.string().optional().describe('Filter tools by name or description'),
-        },
-      },
-      async ({ query }) => {
-        const tools = this.getToolInfos(query);
+    if (!tool) {
+      return {
+        isError: true,
+        content: [
+          {
+            type: 'text',
+            text: `Unknown tool: "${toolName}". Use the search tool to list available tools.`,
+          },
+        ],
+      };
+    }
 
-        return {
-          content: [
-            {
-              type: 'text' as const,
-              text: JSON.stringify(tools, null, 2),
-            },
-          ],
-        };
-      }
-    );
+    if (!tool.enabled) {
+      return {
+        isError: true,
+        content: [{ type: 'text', text: `Tool "${toolName}" is disabled.` }],
+      };
+    }
 
-    // Register the `execute` tool
-    this.server.registerTool(
-      'execute',
-      {
-        description: 'Execute a tool by name with the provided arguments.',
-        inputSchema: {
-          tool: z.string().describe('Name of the tool to execute'),
-          arguments: z
-            .record(z.string(), z.unknown())
-            .optional()
-            .default({})
-            .describe('Arguments to pass to the tool'),
-        },
-      },
-      async ({ tool: toolName, arguments: args }) => {
-        const tool = this.tools.get(toolName);
+    try {
+      // Call the original handler
+      const handler = tool.handler as (
+        args: Record<string, unknown>,
+        extra: unknown
+      ) => Promise<CallToolResult>;
 
-        if (!tool) {
-          return {
-            isError: true,
-            content: [
-              {
-                type: 'text' as const,
-                text: `Unknown tool: "${toolName}". Use the search tool to list available tools.`,
-              },
-            ],
-          };
-        }
-
-        const schema = objectFromShape(tool.inputSchema);
-        const parseResult = safeParse(schema, args);
-
-        if (!parseResult.success) {
-          return {
-            isError: true,
-            content: [
-              {
-                type: 'text' as const,
-                text: `Invalid arguments: ${getParseErrorMessage(parseResult.error)}`,
-              },
-            ],
-          };
-        }
-
-        try {
-          const result = await tool.handler(parseResult.data);
-
-          return {
-            content: [
-              {
-                type: 'text' as const,
-                text: typeof result === 'string' ? result : JSON.stringify(result, null, 2),
-              },
-            ],
-          };
-        } catch (error) {
-          return {
-            isError: true,
-            content: [
-              {
-                type: 'text' as const,
-                text: `Tool error: ${error instanceof Error ? error.message : String(error)}`,
-              },
-            ],
-          };
-        }
-      }
-    );
-
-    const transport = new StdioServerTransport();
-    await this.server.connect(transport);
+      const result = await handler(args, {});
+      return result;
+    } catch (error) {
+      return {
+        isError: true,
+        content: [
+          {
+            type: 'text',
+            text: `Tool error: ${error instanceof Error ? error.message : String(error)}`,
+          },
+        ],
+      };
+    }
   }
 }

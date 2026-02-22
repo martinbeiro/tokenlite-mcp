@@ -1,3 +1,11 @@
 export { LiteMCP } from './litemcp.js';
 
-export type { ToolConfig, ToolHandler, ToolInfo, LiteMCPOptions } from './types.js';
+// Re-export SDK types for convenience
+export type {
+  CallToolResult,
+  Tool,
+  Implementation,
+  RegisteredTool,
+  ServerOptions,
+  Transport,
+} from './types.js';
