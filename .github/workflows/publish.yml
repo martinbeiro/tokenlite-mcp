@@ -34,7 +34,8 @@ jobs:
       - name: Build
         run: bun run build
 
+      - name: Update npm (trusted publishing requires 11.5.1+)
+        run: npm install -g npm@latest
+
       - name: Publish to npm
         run: npm publish --provenance --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
