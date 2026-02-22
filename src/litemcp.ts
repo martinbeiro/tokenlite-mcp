@@ -29,7 +29,11 @@ export class LiteMCP extends McpServer {
         properties: {
           query: {
             type: 'string',
-            description: 'Optional filter by name or description',
+            description: 'Filter by name or description',
+          },
+          limit: {
+            type: 'number',
+            description: 'Max results to return (default: 10)',
           },
         },
       },
@@ -65,7 +69,11 @@ export class LiteMCP extends McpServer {
       const { name, arguments: args = {} } = request.params;
 
       if (name === 'search') {
-        return this.handleSearch(registeredTools, args['query'] as string | undefined);
+        return this.handleSearch(
+          registeredTools,
+          args['query'] as string | undefined,
+          args['limit'] as number | undefined
+        );
       }
 
       if (name === 'execute') {
@@ -87,7 +95,8 @@ export class LiteMCP extends McpServer {
 
   private handleSearch(
     registeredTools: Record<string, RegisteredTool>,
-    query?: string
+    query?: string,
+    limit: number = 10
   ): CallToolResult {
     const tools = Object.entries(registeredTools)
       .filter(([, tool]) => tool.enabled)
@@ -99,7 +108,7 @@ export class LiteMCP extends McpServer {
           : undefined,
       }));
 
-    const filtered = query
+    let filtered = query
       ? tools.filter(
           (t) =>
             t.name.toLowerCase().includes(query.toLowerCase()) ||
@@ -107,8 +116,17 @@ export class LiteMCP extends McpServer {
         )
       : tools;
 
+    // Apply limit
+    const total = filtered.length;
+    filtered = filtered.slice(0, limit);
+
     return {
-      content: [{ type: 'text', text: JSON.stringify(filtered, null, 2) }],
+      content: [
+        {
+          type: 'text',
+          text: JSON.stringify({ tools: filtered, total, limit }, null, 2),
+        },
+      ],
     };
   }
 

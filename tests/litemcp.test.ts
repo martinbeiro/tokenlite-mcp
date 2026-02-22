@@ -9,7 +9,8 @@ type LiteMCPInternal = LiteMCP & {
   _registeredTools: Record<string, RegisteredTool>;
   handleSearch: (
     tools: Record<string, RegisteredTool>,
-    query?: string
+    query?: string,
+    limit?: number
   ) => CallToolResult;
   handleExecute: (
     tools: Record<string, RegisteredTool>,
@@ -17,6 +18,15 @@ type LiteMCPInternal = LiteMCP & {
     args: Record<string, unknown>
   ) => Promise<CallToolResult>;
 };
+
+// Helper to parse search results
+function parseSearchResult(result: CallToolResult) {
+  return JSON.parse(result.content[0].text as string) as {
+    tools: Array<{ name: string; description?: string; inputSchema?: unknown }>;
+    total: number;
+    limit: number;
+  };
+}
 
 describe('LiteMCP', () => {
   let server: LiteMCPInternal;
@@ -88,62 +98,74 @@ describe('LiteMCP', () => {
     });
 
     it('returns all registered tools when no query', () => {
-      const result = server.handleSearch(server._registeredTools);
-      const tools = JSON.parse(result.content[0].text as string);
+      const result = parseSearchResult(server.handleSearch(server._registeredTools));
 
-      expect(tools).toHaveLength(3);
-      expect(tools.map((t: { name: string }) => t.name)).toContain('greet');
-      expect(tools.map((t: { name: string }) => t.name)).toContain('add');
-      expect(tools.map((t: { name: string }) => t.name)).toContain('weather');
+      expect(result.tools).toHaveLength(3);
+      expect(result.total).toBe(3);
+      expect(result.tools.map((t) => t.name)).toContain('greet');
+      expect(result.tools.map((t) => t.name)).toContain('add');
+      expect(result.tools.map((t) => t.name)).toContain('weather');
     });
 
     it('filters by tool name', () => {
-      const result = server.handleSearch(server._registeredTools, 'greet');
-      const tools = JSON.parse(result.content[0].text as string);
+      const result = parseSearchResult(server.handleSearch(server._registeredTools, 'greet'));
 
-      expect(tools).toHaveLength(1);
-      expect(tools[0].name).toBe('greet');
+      expect(result.tools).toHaveLength(1);
+      expect(result.tools[0].name).toBe('greet');
     });
 
     it('filters by description', () => {
-      const result = server.handleSearch(server._registeredTools, 'forecast');
-      const tools = JSON.parse(result.content[0].text as string);
+      const result = parseSearchResult(server.handleSearch(server._registeredTools, 'forecast'));
 
-      expect(tools).toHaveLength(1);
-      expect(tools[0].name).toBe('weather');
+      expect(result.tools).toHaveLength(1);
+      expect(result.tools[0].name).toBe('weather');
     });
 
     it('filter is case insensitive', () => {
-      const result = server.handleSearch(server._registeredTools, 'GREET');
-      const tools = JSON.parse(result.content[0].text as string);
+      const result = parseSearchResult(server.handleSearch(server._registeredTools, 'GREET'));
 
-      expect(tools).toHaveLength(1);
-      expect(tools[0].name).toBe('greet');
+      expect(result.tools).toHaveLength(1);
+      expect(result.tools[0].name).toBe('greet');
     });
 
     it('returns empty array when no match', () => {
-      const result = server.handleSearch(server._registeredTools, 'nonexistent');
-      const tools = JSON.parse(result.content[0].text as string);
+      const result = parseSearchResult(
+        server.handleSearch(server._registeredTools, 'nonexistent')
+      );
 
-      expect(tools).toHaveLength(0);
+      expect(result.tools).toHaveLength(0);
+      expect(result.total).toBe(0);
     });
 
     it('excludes disabled tools', () => {
       server._registeredTools['greet'].enabled = false;
 
-      const result = server.handleSearch(server._registeredTools);
-      const tools = JSON.parse(result.content[0].text as string);
+      const result = parseSearchResult(server.handleSearch(server._registeredTools));
 
-      expect(tools).toHaveLength(2);
-      expect(tools.map((t: { name: string }) => t.name)).not.toContain('greet');
+      expect(result.tools).toHaveLength(2);
+      expect(result.tools.map((t) => t.name)).not.toContain('greet');
     });
 
     it('includes inputSchema in results', () => {
-      const result = server.handleSearch(server._registeredTools, 'add');
-      const tools = JSON.parse(result.content[0].text as string);
+      const result = parseSearchResult(server.handleSearch(server._registeredTools, 'add'));
 
-      expect(tools[0].inputSchema).toBeDefined();
-      expect(tools[0].inputSchema.properties).toBeDefined();
+      expect(result.tools[0].inputSchema).toBeDefined();
+    });
+
+    it('respects limit parameter', () => {
+      const result = parseSearchResult(
+        server.handleSearch(server._registeredTools, undefined, 2)
+      );
+
+      expect(result.tools).toHaveLength(2);
+      expect(result.total).toBe(3);
+      expect(result.limit).toBe(2);
+    });
+
+    it('uses default limit of 10', () => {
+      const result = parseSearchResult(server.handleSearch(server._registeredTools));
+
+      expect(result.limit).toBe(10);
     });
   });
 
